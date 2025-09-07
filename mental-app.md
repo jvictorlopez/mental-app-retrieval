@@ -58,72 +58,70 @@ Uma vez extraídos e normalizados, os documentos precisam ser “fatiados” em 
 ```mermaid
 flowchart TD
   %% ============================================================
-  %% Fluxo RAG — do ingest ao usuário (Qdrant + busca híbrida)
+  %% Fluxo RAG — do ingest ao usuario (Qdrant + busca hibrida)
   %% ============================================================
 
-  %% 1) INGESTÃO & NORMALIZAÇÃO
-  subgraph S1[1. Ingestão & Normalização]
-    A[Conectores: PDFs • Wikis privadas • Tickets] --> B[Parsers / OCR]
-    B --> C[Limpeza & De-dup]
-    C --> D[PII Masking / Redação]
-    D --> E[Metadados: título, autor, data, ACL, tenant]
+  %% 1) INGESTAO & NORMALIZACAO
+  subgraph S1[1. Ingestao & Normalizacao]
+    A[Conectores: PDFs, Wikis privadas, Tickets] --> B[Parsers e OCR]
+    B --> C[Limpeza e De-dup]
+    C --> D[PII masking e redacao]
+    D --> E[Metadados: titulo, autor, data, ACL, tenant]
   end
 
   %% 2) CHUNKING
   subgraph S2[2. Chunking]
-    E --> F[Janela recursiva • overlap]
-    F --> G[Semantic / Header-aware]
+    E --> F[Janelas recursivas com overlap]
+    F --> G[Semantic / Header aware]
     G --> H[Resumo de contexto via LLM]
   end
 
-  %% 3) INDEXAÇÃO EM QDRANT
-  subgraph S3[3. Indexação em Qdrant]
+  %% 3) INDEXACAO EM QDRANT
+  subgraph S3[3. Indexacao em Qdrant]
     H --> I[Embeddings densos: bge-m3]
-    H --> J[Esparsos: BM25 / SPLADE]
+    H --> J[Esparsos: BM25 ou SPLADE]
     I --> K[(Qdrant Collection)]
     J --> K
-    K --> L[Config: HNSW • filtros ACL • quantização]
+    K --> L[Config: HNSW, filtros ACL, quantizacao]
   end
 
-  %% 4–12) SERVING DA QUERY
-  subgraph S4[4–12. Serving da Query]
-    U[Usuário] --> R[4. Router LLM<br/>decide necessidade de retrieval e tenant/coleção]
-    R -->|não precisa| PG0[9. Montagem do Prompt (sem retrieval)]
-    R -->|precisa| QP[5. Parsing da Query<br/>Reescrita (sinônimos/normalização) + HyDE]
-
-    QP --> PF[6. Pré-filtro rígido<br/>ACL • idioma • período • doc_type]
-    PF --> HB[7. Busca Híbrida<br/>ANN denso (HNSW) + BM25/SPLADE<br/>Fusão RRF/pesos • Over-fetch K=30–100]
-    HB --> RR[8. Re-rank<br/>cross-encoder (bge-reranker / Cohere)<br/>Seleciona Top 5–15]
-    RR --> PG[9. Montagem do Prompt<br/>grounding + chunks citáveis + histórico + ferramentas]
-
+  %% 4-12) SERVING DA QUERY
+  subgraph S4[4-12. Serving da query]
+    U[Usuario] --> R[4. Router LLM: decide retrieval e tenant/colecao]
+    R -->|nao precisa| PG0[9. Montagem do Prompt - sem retrieval]
+    R -->|precisa| QP[5. Parsing da Query: reescrita + HyDE]
+    QP --> PF[6. Pre-filtro rigido: ACL, idioma, periodo, doc_type]
+    PF --> HB[7. Busca hibrida: ANN denso (HNSW) + BM25/SPLADE; fusao RRF; over-fetch K=30-100]
+    HB --> RR[8. Re-rank: cross-encoder (bge-reranker ou Cohere); top 5-15]
+    RR --> PG[9. Montagem do Prompt: grounding, chunks citaveis, historico, ferramentas]
     PG0 --> GEN
-    PG  --> GEN
-    GEN[10. Geração<br/>LLM (cloud ou on-prem)] --> PP[11. Pós-processamento<br/>validação JSON • compliance/redação • tradução/localização]
-    PP --> OUT[12. Entrega ao Usuário<br/>resposta + citações clicáveis]
+    PG --> GEN
+    GEN[10. Geracao: LLM cloud ou on-prem] --> PP[11. Pos-processamento: validar JSON, compliance/redacao, traducao/localizacao]
+    PP --> OUT[12. Entrega ao usuario: resposta e citacoes clicaveis]
   end
 
   %% 13) OBSERVABILIDADE
   subgraph S5[13. Observabilidade]
-    OUT --> OBS[Latência • recall@K • custo • erros de cobertura]
-    OBS --> FB[Feedback do usuário: 👍/👎]
-    FB --> RT[IndexOps / Retuning<br/>re-embed • ajustar pesos RRF • HNSW]
+    OUT --> OBS[Metricas: latencia, recall@K, custo, erros de cobertura]
+    OBS --> FB[Feedback do usuario: like ou dislike]
+    FB --> RT[IndexOps / retuning: re-embed, ajustar pesos RRF, HNSW]
     RT --> K
   end
 
-  %% 14) RE-ITERAÇÃO (OPCIONAL)
-  subgraph S6[14. (Opcional) Re-iteração]
-    OUT --> DEC{Qualidade suficiente?}
+  %% 14) RE-ITERACAO (OPCIONAL)
+  subgraph S6[14. Re-iteracao opcional]
+    OUT --> DEC{Qualidade suficiente}
     DEC -->|sim| END[(Fim)]
-    DEC -->|não| RE[Re-busca / ajuste de estratégia]
+    DEC -->|nao| RE[Re-busca ou ajuste de estrategia]
     RE --> QP
-    DEC -.-> HUM[Escalonamento humano<br/>com contexto completo]
+    DEC -.-> HUM[Escalonamento humano com contexto completo]
     HUM -.-> OUT
   end
 
-  %% (Estilo opcional)
   classDef db fill:#eef,stroke:#88a,stroke-width:1px;
   class K db
 ```
+
 
 
 ---
