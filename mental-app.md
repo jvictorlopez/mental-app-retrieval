@@ -57,69 +57,63 @@ Uma vez extraídos e normalizados, os documentos precisam ser “fatiados” em 
 
 ```mermaid
 flowchart TD
-  %% ============================================================
-  %% Fluxo RAG — do ingest ao usuario (Qdrant + busca hibrida)
-  %% ============================================================
 
-  %% 1) INGESTAO & NORMALIZACAO
-  subgraph S1[1. Ingestao & Normalizacao]
-    A[Conectores: PDFs, Wikis privadas, Tickets] --> B[Parsers e OCR]
-    B --> C[Limpeza e De-dup]
-    C --> D[PII masking e redacao]
-    D --> E[Metadados: titulo, autor, data, ACL, tenant]
+  %% 1) INGESTAO E NORMALIZACAO
+  subgraph S1[1. Ingestao e Normalizacao]
+    A["Conectores: PDFs, Wikis privadas, Tickets"] --> B["Parsers e OCR"]
+    B --> C["Limpeza e De-dup"]
+    C --> D["PII masking e redacao"]
+    D --> E["Metadados: titulo, autor, data, ACL, tenant"]
   end
 
   %% 2) CHUNKING
   subgraph S2[2. Chunking]
-    E --> F[Janelas recursivas com overlap]
-    F --> G[Semantic / Header aware]
-    G --> H[Resumo de contexto via LLM]
+    E --> F["Janelas recursivas com overlap"]
+    F --> G["Semantic / Header aware"]
+    G --> H["Resumo de contexto via LLM"]
   end
 
   %% 3) INDEXACAO EM QDRANT
   subgraph S3[3. Indexacao em Qdrant]
-    H --> I[Embeddings densos: bge-m3]
-    H --> J[Esparsos: BM25 ou SPLADE]
-    I --> K[(Qdrant Collection)]
+    H --> I["Embeddings densos: bge-m3"]
+    H --> J["Esparsos: BM25 ou SPLADE"]
+    I --> K["Qdrant Collection"]
     J --> K
-    K --> L[Config: HNSW, filtros ACL, quantizacao]
+    K --> L["Config: HNSW, filtros ACL, quantizacao"]
   end
 
   %% 4-12) SERVING DA QUERY
   subgraph S4[4-12. Serving da query]
-    U[Usuario] --> R[4. Router LLM: decide retrieval e tenant/colecao]
-    R -->|nao precisa| PG0[9. Montagem do Prompt - sem retrieval]
-    R -->|precisa| QP[5. Parsing da Query: reescrita + HyDE]
-    QP --> PF[6. Pre-filtro rigido: ACL, idioma, periodo, doc_type]
-    PF --> HB[7. Busca hibrida: ANN denso (HNSW) + BM25/SPLADE; fusao RRF; over-fetch K=30-100]
-    HB --> RR[8. Re-rank: cross-encoder (bge-reranker ou Cohere); top 5-15]
-    RR --> PG[9. Montagem do Prompt: grounding, chunks citaveis, historico, ferramentas]
+    U["Usuario"] --> R["4. Router LLM decide retrieval e tenant/colecao"]
+    R -->|nao precisa| PG0["9. Montagem do Prompt sem retrieval"]
+    R -->|precisa| QP["5. Parsing da Query reescrita + HyDE"]
+    QP --> PF["6. Pre-filtro rigido: ACL, idioma, periodo, doc_type"]
+    PF --> HB["7. Busca hibrida: ANN denso HNSW + BM25/SPLADE; fusao RRF; over-fetch K 30-100"]
+    HB --> RR["8. Re-rank: cross-encoder bge-reranker ou Cohere; top 5-15"]
+    RR --> PG["9. Montagem do Prompt: grounding, chunks citaveis, historico, ferramentas"]
     PG0 --> GEN
     PG --> GEN
-    GEN[10. Geracao: LLM cloud ou on-prem] --> PP[11. Pos-processamento: validar JSON, compliance/redacao, traducao/localizacao]
-    PP --> OUT[12. Entrega ao usuario: resposta e citacoes clicaveis]
+    GEN["10. Geracao: LLM cloud ou on-prem"] --> PP["11. Pos-processamento: validar JSON, compliance/redacao, traducao/localizacao"]
+    PP --> OUT["12. Entrega ao usuario: resposta e citacoes clicaveis"]
   end
 
   %% 13) OBSERVABILIDADE
   subgraph S5[13. Observabilidade]
-    OUT --> OBS[Metricas: latencia, recall@K, custo, erros de cobertura]
-    OBS --> FB[Feedback do usuario: like ou dislike]
-    FB --> RT[IndexOps / retuning: re-embed, ajustar pesos RRF, HNSW]
+    OUT --> OBS["Metricas: latencia, recall@K, custo, erros de cobertura"]
+    OBS --> FB["Feedback do usuario: like ou dislike"]
+    FB --> RT["IndexOps e retuning: re-embed, ajustar pesos RRF, HNSW"]
     RT --> K
   end
 
-  %% 14) RE-ITERACAO (OPCIONAL)
+  %% 14) RE-ITERACAO OPCIONAL
   subgraph S6[14. Re-iteracao opcional]
-    OUT --> DEC{Qualidade suficiente}
-    DEC -->|sim| END[(Fim)]
-    DEC -->|nao| RE[Re-busca ou ajuste de estrategia]
+    OUT --> DEC["Qualidade suficiente?"]
+    DEC -->|sim| END["Fim"]
+    DEC -->|nao| RE["Re-busca ou ajuste de estrategia"]
     RE --> QP
-    DEC -.-> HUM[Escalonamento humano com contexto completo]
+    DEC -.-> HUM["Escalonamento humano com contexto completo"]
     HUM -.-> OUT
   end
-
-  classDef db fill:#eef,stroke:#88a,stroke-width:1px;
-  class K db
 ```
 
 
