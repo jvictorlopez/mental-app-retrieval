@@ -55,75 +55,75 @@ Uma vez extraídos e normalizados, os documentos precisam ser “fatiados” em 
 
 ## Como as peças se conectam do ingest ao usuário final (descreva passo a passo).
 
+```mermaid
 flowchart TD
-    %% ============================================================
-    %% Fluxo RAG — do ingest ao usuário (com Qdrant e busca híbrida)
-    %% ============================================================
+  %% ============================================================
+  %% Fluxo RAG — do ingest ao usuário (Qdrant + busca híbrida)
+  %% ============================================================
 
-    %% 1) INGESTÃO & NORMALIZAÇÃO
-    subgraph S1[1. Ingestão & Normalização]
-      A[Conectores<br/>PDFs • Wikis privadas • Tickets] --> B[Parsers / OCR]
-      B --> C[Limpeza & De-dup]
-      C --> D[PII Masking / Redação]
-      D --> E[Metadados: título, autor, data, ACL, tenant]
-    end
+  %% 1) INGESTÃO & NORMALIZAÇÃO
+  subgraph S1[1. Ingestão & Normalização]
+    A[Conectores: PDFs • Wikis privadas • Tickets] --> B[Parsers / OCR]
+    B --> C[Limpeza & De-dup]
+    C --> D[PII Masking / Redação]
+    D --> E[Metadados: título, autor, data, ACL, tenant]
+  end
 
-    %% 2) CHUNKING
-    subgraph S2[2. Chunking]
-      E --> F[Janela recursiva • overlap]
-      F --> G[Semantic / Header-aware]
-      G --> H[Resumo de contexto via LLM]
-    end
+  %% 2) CHUNKING
+  subgraph S2[2. Chunking]
+    E --> F[Janela recursiva • overlap]
+    F --> G[Semantic / Header-aware]
+    G --> H[Resumo de contexto via LLM]
+  end
 
-    %% 3) INDEXAÇÃO EM QDRANT
-    subgraph S3[3. Indexação em Qdrant]
-      H --> I[Embeddings densos: bge-m3]
-      H --> J[Esparsos: BM25 / SPLADE]
-      I --> K[(Qdrant Collection)]
-      J --> K
-      K --> L[Config: HNSW • filtros ACL • quantização]
-    end
+  %% 3) INDEXAÇÃO EM QDRANT
+  subgraph S3[3. Indexação em Qdrant]
+    H --> I[Embeddings densos: bge-m3]
+    H --> J[Esparsos: BM25 / SPLADE]
+    I --> K[(Qdrant Collection)]
+    J --> K
+    K --> L[Config: HNSW • filtros ACL • quantização]
+  end
 
-    %% 4–12) SERVING DA QUERY
-    subgraph S4[4–12. Serving da Query]
-      U[Usuário] --> R[4. Router LLM<br/>decide necessidade de retrieval<br/>e tenant/coleção]
-      R -->|não precisa| PG0[9. Montagem do Prompt (sem retrieval)]
-      R -->|precisa| QP[5. Parsing da Query<br/>Reescrita (sinônimos/normalização) + HyDE]
+  %% 4–12) SERVING DA QUERY
+  subgraph S4[4–12. Serving da Query]
+    U[Usuário] --> R[4. Router LLM<br/>decide necessidade de retrieval e tenant/coleção]
+    R -->|não precisa| PG0[9. Montagem do Prompt (sem retrieval)]
+    R -->|precisa| QP[5. Parsing da Query<br/>Reescrita (sinônimos/normalização) + HyDE]
 
-      QP --> PF[6. Pré-filtro rígido<br/>ACL • idioma • período • doc_type]
-      PF --> HB[7. Busca Híbrida<br/>ANN denso (HNSW) + BM25/SPLADE<br/>Fusão RRF/pesos • Over-fetch K=30–100]
-      HB --> RR[8. Re-rank<br/>cross-encoder (bge-reranker / Cohere)<br/>Seleciona Top 5–15]
-      RR --> PG[9. Montagem do Prompt<br/>grounding + chunks citáveis + histórico + ferramentas]
+    QP --> PF[6. Pré-filtro rígido<br/>ACL • idioma • período • doc_type]
+    PF --> HB[7. Busca Híbrida<br/>ANN denso (HNSW) + BM25/SPLADE<br/>Fusão RRF/pesos • Over-fetch K=30–100]
+    HB --> RR[8. Re-rank<br/>cross-encoder (bge-reranker / Cohere)<br/>Seleciona Top 5–15]
+    RR --> PG[9. Montagem do Prompt<br/>grounding + chunks citáveis + histórico + ferramentas]
 
-      PG0 --> GEN
-      PG  --> GEN
-      GEN[10. Geração<br/>LLM (cloud ou on-prem)] --> PP[11. Pós-processamento<br/>validação JSON • compliance/redação • tradução/localização]
-      PP --> OUT[12. Entrega ao Usuário<br/>resposta + citações clicáveis]
-    end
+    PG0 --> GEN
+    PG  --> GEN
+    GEN[10. Geração<br/>LLM (cloud ou on-prem)] --> PP[11. Pós-processamento<br/>validação JSON • compliance/redação • tradução/localização]
+    PP --> OUT[12. Entrega ao Usuário<br/>resposta + citações clicáveis]
+  end
 
-    %% 13) OBSERVABILIDADE
-    subgraph S5[13. Observabilidade]
-      OUT --> OBS[Coleta: latência, recall@K, custo, erros de cobertura]
-      OBS --> FB[Feedback do usuário: 👍/👎 • comentários]
-      FB --> RT[IndexOps / Retuning<br/>re-embed • ajustar pesos RRF • HNSW]
-      RT --> K
-    end
+  %% 13) OBSERVABILIDADE
+  subgraph S5[13. Observabilidade]
+    OUT --> OBS[Latência • recall@K • custo • erros de cobertura]
+    OBS --> FB[Feedback do usuário: 👍/👎]
+    FB --> RT[IndexOps / Retuning<br/>re-embed • ajustar pesos RRF • HNSW]
+    RT --> K
+  end
 
-    %% 14) RE-ITERAÇÃO (OPCIONAL)
-    subgraph S6[14. (Opcional) Re-iteração]
-      DEC{Qualidade suficiente?}
-      DEC -->|sim| END[(Fim)]
-      DEC -->|não| RE[Re-busca / ajuste de estratégia]
-      RE --> QP
-      DEC -.-> HUM[Escalonamento humano<br/>(com contexto completo)]
-      HUM -.-> OUT
-    end
+  %% 14) RE-ITERAÇÃO (OPCIONAL)
+  subgraph S6[14. (Opcional) Re-iteração]
+    OUT --> DEC{Qualidade suficiente?}
+    DEC -->|sim| END[(Fim)]
+    DEC -->|não| RE[Re-busca / ajuste de estratégia]
+    RE --> QP
+    DEC -.-> HUM[Escalonamento humano<br/>com contexto completo]
+    HUM -.-> OUT
+  end
 
-    OUT --> DEC
-
-    %% (Estilo opcional)
-    classDef db fill:#eef,stroke:#88a,stroke-width:1px;
-    class K db
+  %% (Estilo opcional)
+  classDef db fill:#eef,stroke:#88a,stroke-width:1px;
+  class K db
+```
 
 
 ---
