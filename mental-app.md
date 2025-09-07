@@ -56,75 +56,66 @@ Uma vez extraídos e normalizados, os documentos precisam ser “fatiados” em 
 ## Como as peças se conectam do ingest ao usuário final (descreva passo a passo).
 
 ```mermaid
-%%{init: {
-  "theme": "base",
-  "flowchart": { "curve": "linear", "nodeSpacing": 25, "rankSpacing": 35 },
-  "themeVariables": {
-    "background": "#e9e9e9",
-    "primaryColor": "#ffffff",
-    "primaryBorderColor": "#666666",
-    "primaryTextColor": "#222222",
-    "lineColor": "#888888",
-    "clusterBkg": "#e9e9e9",
-    "clusterBorder": "#bfbfbf"
-  }
-}}%%
-flowchart LR
+flowchart TD
 
-  %% ---------- PIPELINE PRINCIPAL (1..12) ----------
-  subgraph P["Pipeline principal"]
-    n1["1. Ingestao e Normalizacao"] --> n2["2. Chunking"]
-    n2 --> n3["3. Indexacao em Qdrant"]
-    n3 --> n4["4. Router LLM"]
-    n4 -->|nao precisa retrieval| n9a["9. Montagem do Prompt - sem retrieval"]
-    n4 -->|precisa retrieval| n5["5. Parsing da Query - reescrita e HyDE"]
-    n5 --> n6["6. Pre filtro rigido - ACL idioma periodo doc type"]
-    n6 --> n7["7. Busca hibrida - ANN denso HNSW e BM25 ou SPLADE - fusao RRF - over fetch K 30 a 100"]
-    n7 --> n8["8. Re rank - cross encoder bge reranker ou Cohere - top 5 a 15"]
-    n8 --> n9["9. Montagem do Prompt - grounding chunks citaveis historico ferramentas"]
-    n9a --> n10
-    n9  --> n10
-    n10["10. Geracao - LLM cloud ou on prem"] --> n11["11. Pos processamento - validar JSON compliance redacao traducao localizacao"]
-    n11 --> n12["12. Entrega ao usuario - resposta e citacoes clicaveis"]
+  %% 1) INGESTAO E NORMALIZACAO
+  subgraph S1[1. Ingestao e Normalizacao]
+    A["Conectores: PDFs, Wikis privadas, Tickets"] --> B["Parsers e OCR"]
+    B --> C["Limpeza e De-dup"]
+    C --> D["PII masking e redacao"]
+    D --> E["Metadados: titulo, autor, data, ACL, tenant"]
   end
 
-  %% ---------- DETALHE DAS ETAPAS 1..3 (COMPACTO) ----------
-  subgraph S1["Detalhe - etapas 1 a 3"]
-    a1["Conectores - PDFs Wikis Tickets"] --> a2["Parsers e OCR"]
-    a2 --> a3["Limpeza e dedup"]
-    a3 --> a4["PII masking e redacao"]
-    a4 --> a5["Metadados - titulo autor data ACL tenant"]
-    a5 --> a6["Janelas recursivas com overlap"]
-    a6 --> a7["Semantic ou Header aware"]
-    a7 --> a8["Resumo de contexto via LLM"]
-    a8 --> a9["Embeddings densos - bge m3"]
-    a8 --> a10["Esparsos - BM25 ou SPLADE"]
-    a9 --> a11["Qdrant Collection"]
-    a10 --> a11
-    a11 --> a12["Config - HNSW filtros ACL quantizacao"]
+  %% 2) CHUNKING
+  subgraph S2[2. Chunking]
+    E --> F["Janelas recursivas com overlap"]
+    F --> G["Semantic / Header aware"]
+    G --> H["Resumo de contexto via LLM"]
   end
 
-  n1 --- S1
-  S1 --- n2
-
-  %% ---------- 13. OBSERVABILIDADE ----------
-  subgraph S5["13. Observabilidade"]
-    obs["Metricas - latencia recall@K custo erros"] --> fb["Feedback do usuario - like ou dislike"]
+  %% 3) INDEXACAO EM QDRANT
+  subgraph S3[3. Indexacao em Qdrant]
+    H --> I["Embeddings densos: bge-m3"]
+    H --> J["Esparsos: BM25 ou SPLADE"]
+    I --> K["Qdrant Collection"]
+    J --> K
+    K --> L["Config: HNSW, filtros ACL, quantizacao"]
   end
-  n12 --> obs
-  fb --> rt["IndexOps e retuning - re embed ajustar pesos RRF HNSW"]
-  rt --> a11
 
-  %% ---------- 14. RE-ITERACAO OPCIONAL ----------
-  subgraph S6["14. Re iteracao opcional"]
-    dec{"Qualidade suficiente"} -->|sim| end1["Fim"]
-    dec -->|nao| re["Re busca ou ajuste de estrategia"]
-    re --> n5
-    dec -.-> hum["Escalonamento humano com contexto completo"]
-    hum -.-> n12
+  %% 4-12) SERVING DA QUERY
+  subgraph S4[4-12. Serving da query]
+    U["Usuario"] --> R["4. Router LLM decide retrieval e tenant/colecao"]
+    R -->|nao precisa| PG0["9. Montagem do Prompt sem retrieval"]
+    R -->|precisa| QP["5. Parsing da Query reescrita + HyDE"]
+    QP --> PF["6. Pre-filtro rigido: ACL, idioma, periodo, doc_type"]
+    PF --> HB["7. Busca hibrida: ANN denso HNSW + BM25/SPLADE; fusao RRF; over-fetch K 30-100"]
+    HB --> RR["8. Re-rank: cross-encoder bge-reranker ou Cohere; top 5-15"]
+    RR --> PG["9. Montagem do Prompt: grounding, chunks citaveis, historico, ferramentas"]
+    PG0 --> GEN
+    PG --> GEN
+    GEN["10. Geracao: LLM cloud ou on-prem"] --> PP["11. Pos-processamento: validar JSON, compliance/redacao, traducao/localizacao"]
+    PP --> OUT["12. Entrega ao usuario: resposta e citacoes clicaveis"]
   end
-  n12 --> dec
+
+  %% 13) OBSERVABILIDADE
+  subgraph S5[13. Observabilidade]
+    OUT --> OBS["Metricas: latencia, recall@K, custo, erros de cobertura"]
+    OBS --> FB["Feedback do usuario: like ou dislike"]
+    FB --> RT["IndexOps e retuning: re-embed, ajustar pesos RRF, HNSW"]
+    RT --> K
+  end
+
+  %% 14) RE-ITERACAO OPCIONAL
+  subgraph S6[14. Re-iteracao opcional]
+    OUT --> DEC["Qualidade suficiente?"]
+    DEC -->|sim| END["Fim"]
+    DEC -->|nao| RE["Re-busca ou ajuste de estrategia"]
+    RE --> QP
+    DEC -.-> HUM["Escalonamento humano com contexto completo"]
+    HUM -.-> OUT
+  end
 ```
+
 
 
 
