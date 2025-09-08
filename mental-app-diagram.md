@@ -56,6 +56,18 @@ Uma vez extraídos e normalizados, os documentos precisam ser “fatiados” em 
 ## Como as peças se conectam do ingest ao usuário final (descreva passo a passo).
 
 ```mermaid
+%%{init: {
+  "theme": "base",
+  "themeVariables": {
+    "background": "#e9e9e9",        /* fundo total cinza */
+    "clusterBkg": "#e9e9e9",        /* subgraphs com o mesmo cinza do fundo */
+    "clusterBorder": "#e9e9e9",     /* borda dos subgraphs invisivel (mesma cor do fundo) */
+    "primaryColor": "#ffffff",      /* caixas brancas para contraste */
+    "primaryBorderColor": "#666666",
+    "primaryTextColor": "#222222",
+    "lineColor": "#888888"
+  }
+}}%%
 flowchart TD
 
   %% 1) INGESTAO E NORMALIZACAO
@@ -115,8 +127,6 @@ flowchart TD
     HUM -.-> OUT
   end
 ```
-
-
 
 
 
