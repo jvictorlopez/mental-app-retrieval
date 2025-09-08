@@ -49,7 +49,7 @@ Uma vez extraídos e normalizados, os documentos precisam ser “fatiados” em 
 ### LLM Gerador (Cloud vs. On-Prem)
 - **Cloud enterprise:** **GPT-4o** ou **Claude Sonnet** → raciocínio robusto, multilíngue, segurança madura. Configuração conservadora (`temperature≤0.5`, `top_p≈0.9`, *repetition penalty* leve). Sempre com **citações** verificáveis.  
 - **On-prem:** **Llama-3.1** (8B/70B ou 405B) quantizado para atender a requisitos de **soberania de dados**.  
-- **Roteamento inteligente:** modelos de raciocínio são ativados apenas quando o **Router LLM** detecta alta complexidade (ex.: análise de cláusulas ou pareceres técnicos), controlando custo e latência.
+- **Roteamento inteligente:** modelos de raciocínio são ativados apenas quando o **Router SLM** detecta alta complexidade (ex.: análise de cláusulas ou pareceres técnicos), controlando custo e latência.
 
 ---
 
@@ -58,7 +58,7 @@ Uma vez extraídos e normalizados, os documentos precisam ser “fatiados” em 
 1. **Ingestão & Normalização** → conecta-se às bases (PDFs, wikis, tickets), aplica parsers/OCR, limpa, deduplica, mascara PII e adiciona metadados.  
 2. **Chunking** → divide em janelas recursivas, aplica *semantic/header-aware* quando necessário e acrescenta contexto resumido via LLM.  
 3. **Indexação em Qdrant** → armazena embeddings `dense_bge_m3` + `sparse_bm25/splade`, configura HNSW, filtros ACL e quantização.  
-4. **Chegada da Query** → **Router LLM** decide se há necessidade de retrieval e direciona ao tenant/coleção correta.  
+4. **Chegada da Query** → **Router SLM** decide se há necessidade de retrieval e direciona ao tenant/coleção correta.  
 5. **Parsing da Query** → reescrita via LLM (sinônimos, normalização), geração de **HyDE** (documento hipotético).  
 6. **Pré-filtro rígido** → aplica ACLs, idioma, período, doc_type.  
 7. **Busca Híbrida** → ANN denso (HNSW) + BM25/SPLADE; resultados fundidos via RRF/pesos; **over-fetch K=30–100**.  
